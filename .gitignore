@@ -2,3 +2,5 @@
 /shelf/
 /build/
 /workspace.xml
+ /.idea/
+ __pycache__/
