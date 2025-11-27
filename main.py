@@ -373,7 +373,12 @@ class CardSearchApp:
     def fetch_commanders(self):
         """从edhtop16网站抓取指挥官列表"""
         try:
-            response = requests.get("https://edhtop16.com/")
+            response = requests.get(
+                "https://edhtop16.com/",
+                verify=False,
+                proxies={"http": None, "https": None},
+                timeout=10
+            )
             response.raise_for_status()
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -511,7 +516,9 @@ class CardSearchApp:
                 "https://edhtop16.com/api/graphql",
                 headers=headers,
                 data=json.dumps(data),
-                verify=False
+                verify=False,
+                proxies={"http": None, "https": None},
+                timeout=10
             )
             response.raise_for_status()
             response_data = response.json()
@@ -584,7 +591,7 @@ class CardSearchApp:
                     "https://www.moxfield.com/decks/",
                     "https://api2.moxfield.com/v3/decks/all/"
                 )
-                deck_response = requests.get(api_url)
+                deck_response = requests.get(api_url,verify=False,proxies={"http": None, "https": None})
                 deck_response.raise_for_status()
 
                 deck_data = deck_response.json()
@@ -603,7 +610,7 @@ class CardSearchApp:
                 return card_counts
             else:
                 # 其他网站直接获取内容
-                deck_response = requests.get(url)
+                deck_response = requests.get(url,verify=False,proxies={"http": None, "https": None})
                 deck_response.raise_for_status()
                 # 只提取copyDecklist函数内的文本内容
                 full_content = deck_response.text

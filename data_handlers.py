@@ -35,6 +35,7 @@ class CardDataHandler:
                 headers=headers,
                 data=json.dumps(data),
                 verify=False,
+                proxies={"http": None, "https": None},
                 timeout=15
             )
             response.raise_for_status()
@@ -91,7 +92,7 @@ class CardDataHandler:
                     "https://www.moxfield.com/decks/",
                     "https://api2.moxfield.com/v3/decks/all/"
                 )
-                deck_response = requests.get(api_url, timeout=10)
+                deck_response = requests.get(api_url, timeout=10,verify=False,proxies={"http": None, "https": None})
                 deck_response.raise_for_status()
 
                 deck_data = deck_response.json()
@@ -108,7 +109,7 @@ class CardDataHandler:
 
             else:
                 # 处理其他网站
-                deck_response = requests.get(url, timeout=10)
+                deck_response = requests.get(url, timeout=10,verify=False,proxies={"http": None, "https": None})
                 deck_response.raise_for_status()
                 # 只提取copyDecklist函数内的文本内容
                 full_content = deck_response.text
