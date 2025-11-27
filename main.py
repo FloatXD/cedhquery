@@ -568,7 +568,7 @@ class CardSearchApp:
         """显示关于对话框"""
         about_text = """CEDH卡牌查询工具
 
-    版本: 2.0.1
+    版本: 2.1.2
     作者: @云玩家阿天
     github: https://github.com/FloatXD/cedhquery
 

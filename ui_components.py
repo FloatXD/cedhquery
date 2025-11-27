@@ -184,6 +184,9 @@ def create_card_usage_tab(notebook, app):
     app.usage_stats_label = ttk.Label(app.usage_tab, textvariable=app.usage_stats_var)
     app.usage_stats_label.grid(row=5, column=0, columnspan=2, pady=5)
 
+    app.usage_author_label = ttk.Label(app.usage_tab, text="@云玩家阿天", foreground="gray")
+    app.usage_author_label.grid(row=6, column=1, sticky=tk.E, pady=(5, 0))
+
 
 def create_impact_analysis_tab(notebook, app):
     """创建卡牌影响力分析页面"""
@@ -233,16 +236,16 @@ def create_impact_analysis_tab(notebook, app):
     min_participants_combo.grid(row=4, column=1, sticky=tk.W, pady=2)
 
     # 最小使用率阈值
-    ttk.Label(impact_params_frame, text="最小使用率阈值:").grid(row=5, column=0, sticky=tk.W, pady=2)
+    ttk.Label(impact_params_frame, text="最小使用率阈值:").grid(row=4, column=2, sticky=tk.W, padx=(20, 0), pady=2)
     app.min_usage_rate_var = tk.StringVar(value="0.05")
-    min_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.min_usage_rate_var, width=20)
-    min_usage_rate_entry.grid(row=5, column=1, sticky=tk.W, pady=2)
+    min_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.min_usage_rate_var, width=10)
+    min_usage_rate_entry.grid(row=4, column=3, sticky=tk.W, pady=2)
 
     # 最大使用率阈值
-    ttk.Label(impact_params_frame, text="最大使用率阈值:").grid(row=6, column=0, sticky=tk.W, pady=2)
+    ttk.Label(impact_params_frame, text="最大使用率阈值:").grid(row=4, column=4, sticky=tk.W, padx=(10, 0), pady=2)
     app.max_usage_rate_var = tk.StringVar(value="0.95")
-    max_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.max_usage_rate_var, width=20)
-    max_usage_rate_entry.grid(row=6, column=1, sticky=tk.W, pady=2)
+    max_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.max_usage_rate_var, width=10)
+    max_usage_rate_entry.grid(row=4, column=5, sticky=tk.W, pady=2)
 
     # 分析按钮
     app.impact_analyze_button = ttk.Button(app.impact_tab, text="分析卡牌影响力", command=app.start_impact_analysis)
@@ -298,6 +301,9 @@ def create_impact_analysis_tab(notebook, app):
     app.impact_stats_var = tk.StringVar()
     app.impact_stats_label = ttk.Label(app.impact_tab, textvariable=app.impact_stats_var)
     app.impact_stats_label.grid(row=12, column=0, columnspan=2, pady=5)
+
+    app.impact_author_label = ttk.Label(app.impact_tab, text="@云玩家阿天", foreground="gray")
+    app.impact_author_label.grid(row=13, column=1, sticky=tk.E, pady=(5, 0))
 
 
 
