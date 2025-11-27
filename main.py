@@ -9,7 +9,7 @@ import urllib3
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 import requests
-from ui_components import create_main_analysis_tab, create_card_usage_tab
+from ui_components import create_main_analysis_tab, create_card_usage_tab, create_impact_analysis_tab
 from data_handlers import CardDataHandler
 # from ui_helpers import MenuHelper, UIHelper
 from bs4 import BeautifulSoup
@@ -42,11 +42,315 @@ class CardSearchApp:
         # 创建不同的选项卡页面
         create_main_analysis_tab(self.notebook, self)
         create_card_usage_tab(self.notebook, self)
+        create_impact_analysis_tab(self.notebook, self)  # 添加这一行
 
         # 创建菜单栏
         self.create_menu()
 
+    def start_impact_analysis(self):
+        """开始卡牌影响力分析"""
+        commander1 = self.impact_commander_var.get().strip()
+        commander2 = self.impact_commander2_var.get().strip()
+        api_key = self.impact_api_key_var.get().strip()
 
+        # 至少需要一个主将
+        if not commander1 and not commander2:
+            messagebox.showwarning("输入错误", "请至少输入一个主将名称")
+            return
+
+        # 需要提供API密钥
+        if not api_key:
+            messagebox.showwarning("输入错误", "请输入API密钥")
+            return
+
+        # 禁用按钮并启动进度条
+        self.impact_analyze_button.config(state='disabled')
+        self.impact_progress.start()
+
+        # 清空现有表格数据
+        for item in self.impact_result_table.get_children():
+            self.impact_result_table.delete(item)
+
+        self.impact_stats_var.set("")
+        self.avg_win_rate_var.set("")
+
+        # 启动后台线程执行分析
+        analyze_thread = threading.Thread(target=self.analyze_card_impact, args=(commander1, commander2, api_key))
+        analyze_thread.daemon = True
+        analyze_thread.start()
+
+        # 定期检查线程是否完成并更新UI
+        self.check_impact_analysis_complete(analyze_thread)
+
+    def check_impact_analysis_complete(self, thread):
+        """检查影响力分析是否完成"""
+        if thread.is_alive():
+            # 如果线程仍在运行，则继续等待
+            self.root.after(100, lambda: self.check_impact_analysis_complete(thread))
+        else:
+            # 线程已完成，恢复按钮并停止进度条
+            self.impact_progress.stop()
+            self.impact_analyze_button.config(state='normal')
+
+    def analyze_card_impact(self, commander1, commander2, api_key):
+        """分析指定指挥官套牌中卡牌的影响力"""
+        try:
+            # 获取参数
+            tournament_count = int(self.tournament_count_var.get())
+            min_participants = int(self.min_participants_var.get())
+
+            # 获取使用率阈值参数
+            try:
+                MIN_USAGE_RATE = float(self.min_usage_rate_var.get())
+            except ValueError:
+                MIN_USAGE_RATE = 0.05
+
+            try:
+                MAX_USAGE_RATE = float(self.max_usage_rate_var.get())
+            except ValueError:
+                MAX_USAGE_RATE = 0.95
+
+            # 构造API请求
+            api_url = "https://topdeck.gg/api/v2/tournaments"
+
+            headers = {
+                "Authorization": api_key,
+                "Content-Type": "application/json"
+            }
+
+            payload = {
+                "last": tournament_count,
+                "participantMin": min_participants,
+                "game": "Magic: The Gathering",
+                "format": "EDH",
+                "columns": [
+                    "name", "decklist", "wins", "byes", "draws", "losses", "winRate"
+                ]
+            }
+
+            # 发送请求
+            response = requests.post(api_url, headers=headers, json=payload, verify=False,
+                                     proxies={"http": None, "https": None})
+            response.raise_for_status()
+
+            data = response.json()
+            tournaments = data if isinstance(data, list) else data.get("data", [])
+
+            if not tournaments:
+                self.root.after(0, lambda: self.impact_stats_var.set("没有符合条件的比赛数据。"))
+                return
+
+            # 收集指定指挥官的套牌数据
+            commander_decks = []
+
+            for t in tournaments:
+                standings = t.get("standings", [])
+                for player in standings:
+                    player_info = player.get("player", player)
+                    deck_obj = player_info.get("deckObj", {})
+                    win_rate = player_info.get("winRate", 0)
+
+                    if win_rate is None:
+                        continue
+
+                    # 检查是否包含指定的指挥官（支持单主将或双主将）
+                    if deck_obj and isinstance(deck_obj, dict):
+                        commanders = list(deck_obj.get("Commanders", {}).keys()) if deck_obj.get("Commanders") else []
+
+                        # 检查是否匹配要求的主将组合
+                        match_found = False
+                        if commander1 and commander2:  # 双主将情况
+                            if commander1 in commanders and commander2 in commanders:
+                                match_found = True
+                        elif commander1:  # 仅主将1
+                            if commander1 in commanders:
+                                match_found = True
+                        elif commander2:  # 仅主将2
+                            if commander2 in commanders:
+                                match_found = True
+
+                        if match_found:
+                            mainboard = list(deck_obj.get("Mainboard", {}).keys()) if deck_obj.get("Mainboard") else []
+                            commander_decks.append({
+                                "mainboard": mainboard,
+                                "win_rate": win_rate
+                            })
+
+            if not commander_decks:
+                commanders_str = f"{commander1}" if commander1 else ""
+                if commander2:
+                    commanders_str += f" 和 {commander2}" if commanders_str else f"{commander2}"
+
+                self.root.after(0, lambda: self.impact_stats_var.set(f"未找到包含 {commanders_str} 的套牌"))
+                return
+
+            # 计算平均胜率
+            total_win_rate = sum(deck["win_rate"] for deck in commander_decks) / len(commander_decks)
+
+            # 统计卡牌使用率并过滤低使用率和高使用率卡牌
+            card_count = {}
+            for deck in commander_decks:
+                mainboard = deck["mainboard"]
+                for card in mainboard:
+                    card_count[card] = card_count.get(card, 0) + 1
+
+            filtered_cards = set()
+            total_decks = len(commander_decks)
+            for card, count in card_count.items():
+                usage_rate = count / total_decks
+                # 过滤掉使用率过低或过高的卡牌
+                if MIN_USAGE_RATE <= usage_rate <= MAX_USAGE_RATE:
+                    filtered_cards.add(card)
+
+            # 计算每张牌对 winRate 的影响
+            card_stats = {}
+
+            # 在 analyze_card_impact 方法中替换原有的卡牌统计循环
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                # 并行处理包含该卡牌的统计数据收集
+                futures = []
+                for deck in commander_decks:
+                    futures.append(executor.submit(self._process_deck_with_cards, deck, filtered_cards, card_stats))
+
+                # 等待所有任务完成
+                for future in concurrent.futures.as_completed(futures):
+                    future.result()
+
+            # 计算不包含每张牌的套牌数据
+            for card in card_stats:
+                for deck in commander_decks:
+                    win_rate = deck["win_rate"]
+                    mainboard = deck["mainboard"]
+
+                    if card not in mainboard:
+                        card_stats[card]["without_count"] += 1
+                        card_stats[card]["without_win_rate_sum"] += win_rate
+
+            # 计算影响力并准备显示数据
+            card_impact_data = []
+            for card, stats in card_stats.items():
+                with_avg = stats["with_win_rate_sum"] / stats["with_count"] if stats["with_count"] > 0 else 0
+                without_avg = stats["without_win_rate_sum"] / stats["without_count"] if stats[
+                                                                                            "without_count"] > 0 else 0
+                impact = with_avg - without_avg
+
+                card_impact_data.append({
+                    "card": card,
+                    "impact": impact,
+                    "with_avg": with_avg,
+                    "without_avg": without_avg,
+                    "with_count": stats["with_count"],
+                    "without_count": stats["without_count"]
+                })
+
+            # 按影响力排序
+            card_impact_data.sort(key=lambda x: x["impact"], reverse=True)
+
+            # 在主线程中更新UI
+            def update_ui():
+                commanders_str = f"{commander1}" if commander1 else ""
+                if commander2:
+                    commanders_str += f" 和 {commander2}" if commanders_str else f"{commander2}"
+
+                self.avg_win_rate_var.set(f"{commanders_str} 套牌平均胜率: {total_win_rate:.4f}")
+
+                for data in card_impact_data:
+                    self.impact_result_table.insert('', tk.END, values=(
+                        data["card"],
+                        f"{data['impact']:.4f}",
+                        f"{data['with_avg']:.4f}",
+                        f"{data['without_avg']:.4f}",
+                        data["with_count"],
+                        data["without_count"]
+                    ))
+
+                self.impact_stats_var.set(
+                    f"总共分析了 {total_decks} 副包含 {commanders_str} 的套牌，显示了 {len(card_impact_data)} 张卡牌的影响力数据")
+
+            self.root.after(0, update_ui)
+
+        except Exception as e:
+            error_msg = f"分析过程中出错: {str(e)}"
+            self.root.after(0, lambda: self.impact_stats_var.set(error_msg))
+            print(error_msg)
+
+    def _process_deck_with_cards(self, deck, filtered_cards, card_stats):
+        win_rate = deck["win_rate"]
+        mainboard = deck["mainboard"]
+
+        for card in mainboard:
+            if card in filtered_cards:
+                if card not in card_stats:
+                    card_stats[card] = {
+                        "with_count": 0,
+                        "with_win_rate_sum": 0,
+                        "without_count": 0,
+                        "without_win_rate_sum": 0
+                    }
+
+                card_stats[card]["with_count"] += 1
+                card_stats[card]["with_win_rate_sum"] += win_rate
+
+
+    def sort_impact_by_column(self, col):
+        """根据指定列对影响力表格进行排序"""
+        # 确定排序方向
+        if self.impact_sort_column == col:
+            self.impact_sort_reverse = not self.impact_sort_reverse
+        else:
+            self.impact_sort_reverse = False
+            self.impact_sort_column = col
+
+        # 获取所有数据
+        data = []
+        for item in self.impact_result_table.get_children():
+            values = self.impact_result_table.item(item, 'values')
+            data.append((values, item))
+
+        # 定义排序键函数
+        col_index = {
+            '卡牌名称': 0,
+            '影响力': 1,
+            '包含时胜率': 2,
+            '不包含时胜率': 3,
+            '包含套牌数': 4,
+            '不包含套牌数': 5
+        }[col]
+
+        def sort_key(item):
+            value = item[0][col_index]
+            # 对数值列进行数值排序
+            if col_index in [1, 2, 3, 4, 5]:
+                try:
+                    if col_index in [1, 2, 3]:  # 浮点数列
+                        return float(value)
+                    else:  # 整数列
+                        return int(value)
+                except ValueError:
+                    return 0
+            else:  # 文本列
+                return value
+
+        # 排序数据
+        data.sort(key=sort_key, reverse=self.impact_sort_reverse)
+
+        # 重新插入数据到表格
+        for index, (values, item) in enumerate(data):
+            self.impact_result_table.move(item, '', index)
+
+        # 更新表头显示
+        self.update_impact_heading_display()
+
+    def update_impact_heading_display(self):
+        """更新影响力表格表头显示以指示排序方向"""
+        # 重置所有表头
+        columns = ['卡牌名称', '影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数']
+        for col in columns:
+            if col == self.impact_sort_column:
+                arrow = ' ↓' if self.impact_sort_reverse else ' ↑'
+                self.impact_result_table.heading(col, text=col + arrow)
+            else:
+                self.impact_result_table.heading(col, text=col)
 
     def start_usage_search(self):
         """开始搜索卡牌使用率"""

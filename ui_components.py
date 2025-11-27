@@ -183,3 +183,121 @@ def create_card_usage_tab(notebook, app):
     app.usage_stats_var = tk.StringVar()
     app.usage_stats_label = ttk.Label(app.usage_tab, textvariable=app.usage_stats_var)
     app.usage_stats_label.grid(row=5, column=0, columnspan=2, pady=5)
+
+
+def create_impact_analysis_tab(notebook, app):
+    """创建卡牌影响力分析页面"""
+    app.impact_tab = ttk.Frame(app.notebook)
+    app.notebook.add(app.impact_tab, text="卡牌影响力分析")
+
+    app.impact_tab.columnconfigure(0, weight=1)
+    app.impact_tab.rowconfigure(4, weight=1)  # 表格所在行
+
+    # 查询参数框架
+    impact_params_frame = ttk.LabelFrame(app.impact_tab, text="查询设置", padding="5")
+    impact_params_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+    impact_params_frame.columnconfigure(1, weight=1)
+
+    # Commander选择部分 - 主将1
+    ttk.Label(impact_params_frame, text="主将1:").grid(row=0, column=0, sticky=tk.W, pady=2)
+    app.impact_commander_var = tk.StringVar(value="Kinnan, Bonder Prodigy")
+    app.impact_commander_entry = ttk.Entry(impact_params_frame, textvariable=app.impact_commander_var, width=50)
+    app.impact_commander_entry.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=2)
+
+    # Commander选择部分 - 主将2（新增）
+    ttk.Label(impact_params_frame, text="主将2:").grid(row=1, column=0, sticky=tk.W, pady=2)
+    app.impact_commander2_var = tk.StringVar()
+    app.impact_commander2_entry = ttk.Entry(impact_params_frame, textvariable=app.impact_commander2_var, width=50)
+    app.impact_commander2_entry.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=2)
+
+    # API密钥输入
+    ttk.Label(impact_params_frame, text="API密钥:").grid(row=2, column=0, sticky=tk.W, pady=2)
+    app.impact_api_key_var = tk.StringVar()
+    app.impact_api_key_entry = ttk.Entry(impact_params_frame, textvariable=app.impact_api_key_var, width=50, show="*")
+    app.impact_api_key_entry.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=2)
+
+    # Tournament数量选择
+    ttk.Label(impact_params_frame, text="赛事数量:").grid(row=3, column=0, sticky=tk.W, pady=2)
+    app.tournament_count_var = tk.StringVar(value="10")
+    tournament_count_combo = ttk.Combobox(impact_params_frame, textvariable=app.tournament_count_var,
+                                          values=["5", "10", "20", "50"],
+                                          state="readonly", width=20)
+    tournament_count_combo.grid(row=3, column=1, sticky=tk.W, pady=2)
+
+    # 最小参赛人数
+    ttk.Label(impact_params_frame, text="最小参赛人数:").grid(row=4, column=0, sticky=tk.W, pady=2)
+    app.min_participants_var = tk.StringVar(value="50")
+    min_participants_combo = ttk.Combobox(impact_params_frame, textvariable=app.min_participants_var,
+                                          values=["32", "50", "100", "200"],
+                                          state="readonly", width=20)
+    min_participants_combo.grid(row=4, column=1, sticky=tk.W, pady=2)
+
+    # 最小使用率阈值
+    ttk.Label(impact_params_frame, text="最小使用率阈值:").grid(row=5, column=0, sticky=tk.W, pady=2)
+    app.min_usage_rate_var = tk.StringVar(value="0.05")
+    min_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.min_usage_rate_var, width=20)
+    min_usage_rate_entry.grid(row=5, column=1, sticky=tk.W, pady=2)
+
+    # 最大使用率阈值
+    ttk.Label(impact_params_frame, text="最大使用率阈值:").grid(row=6, column=0, sticky=tk.W, pady=2)
+    app.max_usage_rate_var = tk.StringVar(value="0.95")
+    max_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.max_usage_rate_var, width=20)
+    max_usage_rate_entry.grid(row=6, column=1, sticky=tk.W, pady=2)
+
+    # 分析按钮
+    app.impact_analyze_button = ttk.Button(app.impact_tab, text="分析卡牌影响力", command=app.start_impact_analysis)
+    app.impact_analyze_button.grid(row=7, column=0, columnspan=2, pady=10)
+
+    # 进度条
+    app.impact_progress = ttk.Progressbar(app.impact_tab, mode='indeterminate')
+    app.impact_progress.grid(row=8, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+
+    # 平均胜率显示
+    app.avg_win_rate_var = tk.StringVar()
+    app.avg_win_rate_label = ttk.Label(app.impact_tab, textvariable=app.avg_win_rate_var)
+    app.avg_win_rate_label.grid(row=9, column=0, columnspan=2, pady=5)
+
+    # 结果显示区域 - 使用表格
+    ttk.Label(app.impact_tab, text="卡牌影响力分析结果:").grid(row=10, column=0, sticky=tk.W, pady=(10, 5))
+
+    # 创建表格框架
+    impact_table_frame = ttk.Frame(app.impact_tab)
+    impact_table_frame.grid(row=11, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+    app.impact_tab.rowconfigure(11, weight=1)
+
+    # 创建Treeview表格
+    impact_columns = ('卡牌名称', '影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数')
+    app.impact_result_table = ttk.Treeview(impact_table_frame, columns=impact_columns, show='headings', height=20)
+
+    app.impact_sort_column = None
+    app.impact_sort_reverse = False
+
+    # 定义表头
+    for col in impact_columns:
+        app.impact_result_table.heading(col, text=col, command=lambda c=col: app.sort_impact_by_column(c))
+        app.impact_result_table.column(col, width=120, anchor='center')
+
+    # 特别设置某些列的宽度
+    app.impact_result_table.column('卡牌名称', width=200)
+    app.impact_result_table.column('影响力', width=100)
+
+    # 创建滚动条
+    impact_scrollbar_y = ttk.Scrollbar(impact_table_frame, orient=tk.VERTICAL, command=app.impact_result_table.yview)
+    impact_scrollbar_x = ttk.Scrollbar(impact_table_frame, orient=tk.HORIZONTAL, command=app.impact_result_table.xview)
+    app.impact_result_table.configure(yscrollcommand=impact_scrollbar_y.set, xscrollcommand=impact_scrollbar_x.set)
+
+    # 布局表格和滚动条
+    app.impact_result_table.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    impact_scrollbar_y.grid(row=0, column=1, sticky=(tk.N, tk.S))
+    impact_scrollbar_x.grid(row=1, column=0, sticky=(tk.W, tk.E))
+
+    impact_table_frame.columnconfigure(0, weight=1)
+    impact_table_frame.rowconfigure(0, weight=1)
+
+    # 统计信息
+    app.impact_stats_var = tk.StringVar()
+    app.impact_stats_label = ttk.Label(app.impact_tab, textvariable=app.impact_stats_var)
+    app.impact_stats_label.grid(row=12, column=0, columnspan=2, pady=5)
+
+
+
