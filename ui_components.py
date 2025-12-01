@@ -269,7 +269,7 @@ def create_impact_analysis_tab(notebook, app):
     app.impact_tab.rowconfigure(11, weight=1)
 
     # 创建Treeview表格
-    impact_columns = ('卡牌名称', '影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数')
+    impact_columns = ('卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数')
     app.impact_result_table = ttk.Treeview(impact_table_frame, columns=impact_columns, show='headings', height=20)
 
     app.impact_sort_column = None
@@ -281,8 +281,9 @@ def create_impact_analysis_tab(notebook, app):
         app.impact_result_table.column(col, width=120, anchor='center')
 
     # 特别设置某些列的宽度
-    app.impact_result_table.column('卡牌名称', width=200)
+    app.impact_result_table.column('卡牌名称', width=180)
     app.impact_result_table.column('影响力', width=100)
+    app.impact_result_table.column('绝对影响力', width=100)
 
     # 创建滚动条
     impact_scrollbar_y = ttk.Scrollbar(impact_table_frame, orient=tk.VERTICAL, command=app.impact_result_table.yview)

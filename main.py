@@ -234,9 +234,13 @@ class CardSearchApp:
                                                                                             "without_count"] > 0 else 0
                 impact = with_avg - without_avg
 
+                # 计算绝对影响力：携带此单卡的胜率与套牌平均胜率的差值
+                absolute_impact = with_avg - total_win_rate
+
                 card_impact_data.append({
                     "card": card,
                     "impact": impact,
+                    "absolute_impact": absolute_impact,
                     "with_avg": with_avg,
                     "without_avg": without_avg,
                     "with_count": stats["with_count"],
@@ -258,6 +262,7 @@ class CardSearchApp:
                     self.impact_result_table.insert('', tk.END, values=(
                         data["card"],
                         f"{data['impact']:.4f}",
+                        f"{data['absolute_impact']:.4f}",
                         f"{data['with_avg']:.4f}",
                         f"{data['without_avg']:.4f}",
                         data["with_count"],
@@ -307,25 +312,28 @@ class CardSearchApp:
             values = self.impact_result_table.item(item, 'values')
             data.append((values, item))
 
-        # 定义排序键函数
         col_index = {
             '卡牌名称': 0,
             '影响力': 1,
-            '包含时胜率': 2,
-            '不包含时胜率': 3,
-            '包含套牌数': 4,
-            '不包含套牌数': 5
+            '绝对影响力': 2,
+            '包含时胜率': 3,
+            '不包含时胜率': 4,
+            '包含套牌数': 5,
+            '不包含套牌数': 6
         }[col]
 
+        # 更新数值列判断逻辑
         def sort_key(item):
             value = item[0][col_index]
             # 对数值列进行数值排序
-            if col_index in [1, 2, 3, 4, 5]:
+            if col_index in [1, 2, 3, 4]:  # 浮点数列
                 try:
-                    if col_index in [1, 2, 3]:  # 浮点数列
-                        return float(value)
-                    else:  # 整数列
-                        return int(value)
+                    return float(value)
+                except ValueError:
+                    return 0
+            elif col_index in [5, 6]:  # 整数列
+                try:
+                    return int(value)
                 except ValueError:
                     return 0
             else:  # 文本列
@@ -344,7 +352,7 @@ class CardSearchApp:
     def update_impact_heading_display(self):
         """更新影响力表格表头显示以指示排序方向"""
         # 重置所有表头
-        columns = ['卡牌名称', '影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数']
+        columns = ['卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数']
         for col in columns:
             if col == self.impact_sort_column:
                 arrow = ' ↓' if self.impact_sort_reverse else ' ↑'
