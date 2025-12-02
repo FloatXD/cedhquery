@@ -13,6 +13,9 @@ from ui_components import create_main_analysis_tab, create_card_usage_tab, creat
 from data_handlers import CardDataHandler
 # from ui_helpers import MenuHelper, UIHelper
 from bs4 import BeautifulSoup
+import pandas as pd
+from datetime import datetime
+import os
 
 # 禁用不安全请求警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -272,6 +275,10 @@ class CardSearchApp:
                 self.impact_stats_var.set(
                     f"总共分析了 {total_decks} 副包含 {commanders_str} 的套牌，显示了 {len(card_impact_data)} 张卡牌的影响力数据")
 
+                # 检查是否需要导出至Excel
+                if self.export_to_excel_var.get():
+                    self.export_impact_data_to_excel(card_impact_data, commander1, commander2, total_win_rate)
+
             self.root.after(0, update_ui)
 
         except Exception as e:
@@ -383,6 +390,44 @@ class CardSearchApp:
 
         # 定期检查线程是否完成并更新UI
         self.check_usage_search_complete(search_thread)
+
+    def export_impact_data_to_excel(self, card_impact_data, commander1, commander2, avg_win_rate):
+        """将影响力分析结果导出至Excel文件"""
+        try:
+            # 准备导出数据
+            export_data = []
+            for data in card_impact_data:
+                export_data.append({
+                    "卡牌名称": data["card"],
+                    "影响力": data["impact"],
+                    "绝对影响力": data["absolute_impact"],
+                    "包含时胜率": data["with_avg"],
+                    "不包含时胜率": data["without_avg"],
+                    "包含套牌数": data["with_count"],
+                    "不包含套牌数": data["without_count"]
+                })
+
+            # 创建DataFrame
+            df = pd.DataFrame(export_data)
+
+            # 生成文件名
+            commanders_str = f"{commander1}"
+            if commander2:
+                commanders_str += f"_and_{commander2}"
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"卡牌影响力分析_{commanders_str}_{timestamp}.xlsx"
+
+            # 保存到Excel文件
+            df.to_excel(filename, index=False, float_format="%.4f")
+
+            # 显示成功消息
+            self.root.after(0, lambda: messagebox.showinfo("导出成功", f"分析结果已导出至文件:\n{filename}"))
+
+        except Exception as e:
+            error_msg = f"导出Excel文件时出错: {str(e)}"
+            self.root.after(0, lambda: messagebox.showerror("导出失败", error_msg))
+            print(error_msg)
 
     def check_usage_search_complete(self, thread):
         """检查使用率搜索是否完成"""

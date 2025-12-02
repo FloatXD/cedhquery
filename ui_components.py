@@ -247,6 +247,12 @@ def create_impact_analysis_tab(notebook, app):
     max_usage_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.max_usage_rate_var, width=10)
     max_usage_rate_entry.grid(row=4, column=5, sticky=tk.W, pady=2)
 
+    # 导出至Excel选项
+    app.export_to_excel_var = tk.BooleanVar(value=False)
+    export_checkbox = ttk.Checkbutton(impact_params_frame, text="导出结果至Excel文件",
+                                      variable=app.export_to_excel_var)
+    export_checkbox.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=2)
+
     # 分析按钮
     app.impact_analyze_button = ttk.Button(app.impact_tab, text="分析卡牌影响力", command=app.start_impact_analysis)
     app.impact_analyze_button.grid(row=7, column=0, columnspan=2, pady=10)
@@ -303,8 +309,12 @@ def create_impact_analysis_tab(notebook, app):
     app.impact_stats_label = ttk.Label(app.impact_tab, textvariable=app.impact_stats_var)
     app.impact_stats_label.grid(row=12, column=0, columnspan=2, pady=5)
 
+    app.impact_data_provider_label = ttk.Label(app.impact_tab, text="Data provided by TopDeck.gg", foreground="gray")
+    app.impact_data_provider_label.grid(row=13, column=0, sticky=tk.W, pady=(5, 0))
+
     app.impact_author_label = ttk.Label(app.impact_tab, text="@云玩家阿天", foreground="gray")
     app.impact_author_label.grid(row=13, column=1, sticky=tk.E, pady=(5, 0))
+
 
 
 
