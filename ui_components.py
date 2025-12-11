@@ -223,7 +223,7 @@ def create_impact_analysis_tab(notebook, app):
     ttk.Label(impact_params_frame, text="赛事数量:").grid(row=3, column=0, sticky=tk.W, pady=2)
     app.tournament_count_var = tk.StringVar(value="10")
     tournament_count_combo = ttk.Combobox(impact_params_frame, textvariable=app.tournament_count_var,
-                                          values=["5", "10", "20", "50"],
+                                          values=["5", "10", "20", "50", "100", "200"],
                                           state="readonly", width=20)
     tournament_count_combo.grid(row=3, column=1, sticky=tk.W, pady=2)
 
@@ -253,6 +253,12 @@ def create_impact_analysis_tab(notebook, app):
                                       variable=app.export_to_excel_var)
     export_checkbox.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=2)
 
+    # 在 impact_params_frame 中添加最低胜率输入（在合适的位置）
+    ttk.Label(impact_params_frame, text="最低胜率过滤:").grid(row=5, column=2, sticky=tk.W, padx=(20, 0), pady=2)
+    app.min_win_rate_var = tk.StringVar(value="0")
+    min_win_rate_entry = ttk.Entry(impact_params_frame, textvariable=app.min_win_rate_var, width=10)
+    min_win_rate_entry.grid(row=5, column=3, sticky=tk.W, pady=2)
+
     # 分析按钮
     app.impact_analyze_button = ttk.Button(app.impact_tab, text="分析卡牌影响力", command=app.start_impact_analysis)
     app.impact_analyze_button.grid(row=7, column=0, columnspan=2, pady=10)
@@ -275,7 +281,7 @@ def create_impact_analysis_tab(notebook, app):
     app.impact_tab.rowconfigure(11, weight=1)
 
     # 创建Treeview表格
-    impact_columns = ('卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数')
+    impact_columns = ('卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含时方差', '包含套牌数', '不包含套牌数')
     app.impact_result_table = ttk.Treeview(impact_table_frame, columns=impact_columns, show='headings', height=20)
 
     app.impact_sort_column = None
@@ -290,6 +296,7 @@ def create_impact_analysis_tab(notebook, app):
     app.impact_result_table.column('卡牌名称', width=180)
     app.impact_result_table.column('影响力', width=100)
     app.impact_result_table.column('绝对影响力', width=100)
+    app.impact_result_table.column('包含时方差', width=100)
 
     # 创建滚动条
     impact_scrollbar_y = ttk.Scrollbar(impact_table_frame, orient=tk.VERTICAL, command=app.impact_result_table.yview)

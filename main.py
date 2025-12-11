@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
 import os
+import datetime
 
 # 禁用不安全请求警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -113,6 +114,11 @@ class CardSearchApp:
             except ValueError:
                 MAX_USAGE_RATE = 0.95
 
+            try:
+                MIN_WIN_RATE = float(self.min_win_rate_var.get())
+            except ValueError:
+                MIN_WIN_RATE = 0
+
             # 构造API请求
             api_url = "https://topdeck.gg/api/v2/tournaments"
 
@@ -146,14 +152,28 @@ class CardSearchApp:
             # 收集指定指挥官的套牌数据
             commander_decks = []
 
+            earliest_date = None
+
+
             for t in tournaments:
                 standings = t.get("standings", [])
+
+
+                startDate = t.get("startDate", "")
+                if startDate:
+                    if earliest_date is None:
+                        earliest_date = startDate
+                    else:
+                        # 比较日期，保留最早的
+                        if startDate < earliest_date:
+                            earliest_date = startDate
+
                 for player in standings:
                     player_info = player.get("player", player)
                     deck_obj = player_info.get("deckObj", {})
                     win_rate = player_info.get("winRate", 0)
 
-                    if win_rate is None:
+                    if win_rate is None or win_rate < MIN_WIN_RATE:  # 添加胜率过滤条件
                         continue
 
                     # 检查是否包含指定的指挥官（支持单主将或双主将）
@@ -228,6 +248,7 @@ class CardSearchApp:
                     if card not in mainboard:
                         card_stats[card]["without_count"] += 1
                         card_stats[card]["without_win_rate_sum"] += win_rate
+                        card_stats[card]["without_win_rate_sum_sq"] += win_rate ** 2  # 累加平方值
 
             # 计算影响力并准备显示数据
             card_impact_data = []
@@ -236,6 +257,14 @@ class CardSearchApp:
                 without_avg = stats["without_win_rate_sum"] / stats["without_count"] if stats[
                                                                                             "without_count"] > 0 else 0
                 impact = with_avg - without_avg
+
+                # 计算包含该卡牌时的方差（使用总体方差）
+                with_variance = 0
+                if stats["with_count"] > 0:  # 总体方差不需要至少2个样本
+                    mean = stats["with_win_rate_sum"] / stats["with_count"]
+                    # 使用总体方差公式: (Σx² - n*μ²) / n
+                    with_variance = (stats["with_win_rate_sum_sq"] - stats["with_count"] * mean * mean) / stats[
+                        "with_count"]
 
                 # 计算绝对影响力：携带此单卡的胜率与套牌平均胜率的差值
                 absolute_impact = with_avg - total_win_rate
@@ -246,6 +275,7 @@ class CardSearchApp:
                     "absolute_impact": absolute_impact,
                     "with_avg": with_avg,
                     "without_avg": without_avg,
+                    "with_variance": with_variance,  # 添加方差数据
                     "with_count": stats["with_count"],
                     "without_count": stats["without_count"]
                 })
@@ -268,12 +298,14 @@ class CardSearchApp:
                         f"{data['absolute_impact']:.4f}",
                         f"{data['with_avg']:.4f}",
                         f"{data['without_avg']:.4f}",
+                        f"{data['with_variance']:.6f}",  # 添加方差显示
                         data["with_count"],
                         data["without_count"]
                     ))
 
+                date_info = f" (数据最早来自: {datetime.datetime.fromtimestamp(earliest_date).strftime('%Y-%m-%d')})" if earliest_date else ""
                 self.impact_stats_var.set(
-                    f"总共分析了 {total_decks} 副包含 {commanders_str} 的套牌，显示了 {len(card_impact_data)} 张卡牌的影响力数据")
+                    f"总共分析了 {total_decks} 副包含 {commanders_str} 的套牌，显示了 {len(card_impact_data)} 张卡牌的影响力数据{date_info}")
 
                 # 检查是否需要导出至Excel
                 if self.export_to_excel_var.get():
@@ -296,12 +328,15 @@ class CardSearchApp:
                     card_stats[card] = {
                         "with_count": 0,
                         "with_win_rate_sum": 0,
+                        "with_win_rate_sum_sq": 0,  # 添加平方和用于方差计算
                         "without_count": 0,
-                        "without_win_rate_sum": 0
+                        "without_win_rate_sum": 0,
+                        "without_win_rate_sum_sq": 0  # 添加平方和用于方差计算
                     }
 
                 card_stats[card]["with_count"] += 1
                 card_stats[card]["with_win_rate_sum"] += win_rate
+                card_stats[card]["with_win_rate_sum_sq"] += win_rate ** 2  #
 
 
     def sort_impact_by_column(self, col):
@@ -325,20 +360,21 @@ class CardSearchApp:
             '绝对影响力': 2,
             '包含时胜率': 3,
             '不包含时胜率': 4,
-            '包含套牌数': 5,
-            '不包含套牌数': 6
+            '包含时方差': 5,  # 添加方差列索引
+            '包含套牌数': 6,
+            '不包含套牌数': 7
         }[col]
 
         # 更新数值列判断逻辑
         def sort_key(item):
             value = item[0][col_index]
             # 对数值列进行数值排序
-            if col_index in [1, 2, 3, 4]:  # 浮点数列
+            if col_index in [1, 2, 3, 4, 5]:  # 添加方差列为浮点数列
                 try:
                     return float(value)
                 except ValueError:
                     return 0
-            elif col_index in [5, 6]:  # 整数列
+            elif col_index in [6, 7]:  # 调整整数列索引
                 try:
                     return int(value)
                 except ValueError:
@@ -359,7 +395,7 @@ class CardSearchApp:
     def update_impact_heading_display(self):
         """更新影响力表格表头显示以指示排序方向"""
         # 重置所有表头
-        columns = ['卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含套牌数', '不包含套牌数']
+        columns = ['卡牌名称', '影响力', '绝对影响力', '包含时胜率', '不包含时胜率', '包含时方差', '包含套牌数', '不包含套牌数']
         for col in columns:
             if col == self.impact_sort_column:
                 arrow = ' ↓' if self.impact_sort_reverse else ' ↑'
@@ -394,15 +430,26 @@ class CardSearchApp:
     def export_impact_data_to_excel(self, card_impact_data, commander1, commander2, avg_win_rate):
         """将影响力分析结果导出至Excel文件"""
         try:
-            # 准备导出数据
+            # 生成文件名
+            commanders_str = f"{commander1}"
+            if commander2:
+                commanders_str += f"_and_{commander2}"
+
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"卡牌影响力分析_{commanders_str}_{timestamp}.xlsx"
+
+            # 准备导出数据（只包含标题行和详细数据）
             export_data = []
+
+            # 添加详细数据
             for data in card_impact_data:
                 export_data.append({
                     "卡牌名称": data["card"],
-                    "影响力": data["impact"],
-                    "绝对影响力": data["absolute_impact"],
-                    "包含时胜率": data["with_avg"],
-                    "不包含时胜率": data["without_avg"],
+                    "影响力": f"{data['impact']:.4f}",
+                    "绝对影响力": f"{data['absolute_impact']:.4f}",
+                    "包含时胜率": f"{data['with_avg']:.4f}",
+                    "不包含时胜率": f"{data['without_avg']:.4f}",
+                    "包含时方差": f"{data['with_variance']:.6f}",
                     "包含套牌数": data["with_count"],
                     "不包含套牌数": data["without_count"]
                 })
@@ -410,16 +457,8 @@ class CardSearchApp:
             # 创建DataFrame
             df = pd.DataFrame(export_data)
 
-            # 生成文件名
-            commanders_str = f"{commander1}"
-            if commander2:
-                commanders_str += f"_and_{commander2}"
-
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"卡牌影响力分析_{commanders_str}_{timestamp}.xlsx"
-
             # 保存到Excel文件
-            df.to_excel(filename, index=False, float_format="%.4f")
+            df.to_excel(filename, index=False, float_format="%.6f")
 
             # 显示成功消息
             self.root.after(0, lambda: messagebox.showinfo("导出成功", f"分析结果已导出至文件:\n{filename}"))
